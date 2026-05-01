@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+build/
+.gradle/
+
+# Local IDE and machine state
+.vs/
+.idea/
+*.user
+*.suo
+*.tmp
+
+# Android local configuration and generated APKs
+local.properties
+*.apk
+*.aab
+
+# Local scratch files copied while debugging Compose internals
+.tmp/
+androidMain/
