@@ -29,6 +29,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,7 @@ import com.mathwrite.app.bridge.CompanionBridgeClient
 import com.mathwrite.app.bridge.CompanionDevice
 import com.mathwrite.app.bridge.CompanionDiscoveryClient
 import com.mathwrite.app.bridge.CompanionEndpoint
+import com.mathwrite.app.bridge.ConnectionUiState
 import com.mathwrite.app.bridge.EndpointPreferences
 import com.mathwrite.app.format.LatexPasteMode
 import com.mathwrite.app.ink.InkStroke
@@ -91,8 +93,11 @@ private fun MathwriteScreen() {
     var isSending by remember { mutableStateOf(false) }
     var isScanning by remember { mutableStateOf(false) }
     var boardMode by remember { mutableStateOf(BoardMode.Math) }
+    var selectedEndpoint by remember { mutableStateOf(savedEndpoint) }
     var endpointHost by remember { mutableStateOf(savedEndpoint?.host.orEmpty()) }
     var endpointPortText by remember { mutableStateOf((savedEndpoint?.port ?: 18765).toString()) }
+    var connectionActive by remember { mutableStateOf(false) }
+    var showConnectionSetup by remember { mutableStateOf(savedEndpoint == null) }
     var discoveredDevices by remember { mutableStateOf<List<CompanionDevice>>(emptyList()) }
     var selectedColorArgb by remember { mutableStateOf(0xFF111827.toInt()) }
     var backgroundArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
@@ -100,18 +105,16 @@ private fun MathwriteScreen() {
     var sketchWidth by remember { mutableStateOf(8f) }
     var sketchCanvasSize by remember { mutableStateOf(IntSize.Zero) }
     val scope = rememberCoroutineScope()
+    val connectionState = ConnectionUiState(selectedEndpoint, connectionActive, showConnectionSetup)
 
     fun currentEndpoint(): CompanionEndpoint? {
         val port = endpointPortText.toIntOrNull()
         val host = endpointHost.trim()
-        return if (host.isBlank() || port == null || port !in 1..65535) {
-            null
-        } else {
-            CompanionEndpoint(host, port)
-        }
+        return selectedEndpoint ?: if (host.isBlank() || port == null || port !in 1..65535) null else CompanionEndpoint(host, port)
     }
 
     fun saveAndAnnounceEndpoint(endpoint: CompanionEndpoint) {
+        selectedEndpoint = endpoint
         endpointHost = endpoint.host
         endpointPortText = endpoint.port.toString()
         endpointPreferences.save(endpoint)
@@ -121,10 +124,46 @@ private fun MathwriteScreen() {
                 CompanionBridgeClient(endpoint).announceTablet(bridgeSessionId, tabletName)
             }
             status = if (result.ok) {
+                connectionActive = true
+                showConnectionSetup = false
                 "Connected to ${endpoint.displayName}."
             } else {
+                connectionActive = false
+                showConnectionSetup = true
                 result.message ?: "Could not reach ${endpoint.displayName}."
             }
+        }
+    }
+
+    fun checkCurrentConnection() {
+        val endpoint = currentEndpoint()
+        if (endpoint == null) {
+            selectedEndpoint = null
+            connectionActive = false
+            showConnectionSetup = true
+            status = "Choose a laptop companion before checking."
+            return
+        }
+
+        selectedEndpoint = endpoint
+        status = "Checking ${endpoint.displayName}..."
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                CompanionBridgeClient(endpoint).checkHealth()
+            }
+            connectionActive = result.ok
+            showConnectionSetup = !result.ok
+            status = if (result.ok) {
+                "Connection active: ${endpoint.displayName}."
+            } else {
+                result.message ?: "Connection inactive: ${endpoint.displayName}."
+            }
+        }
+    }
+
+    LaunchedEffect(savedEndpoint) {
+        if (savedEndpoint != null) {
+            checkCurrentConnection()
         }
     }
 
@@ -159,8 +198,12 @@ private fun MathwriteScreen() {
                     }
 
                     status = if (bridgeResult.ok) {
+                        connectionActive = true
+                        showConnectionSetup = false
                         "Pasted LaTeX through LAN."
                     } else {
+                        connectionActive = false
+                        showConnectionSetup = true
                         bridgeResult.message ?: "Windows companion paste failed."
                     }
                     isSending = false
@@ -197,8 +240,12 @@ private fun MathwriteScreen() {
                     }
 
                     status = if (bridgeResult.ok) {
+                        connectionActive = true
+                        showConnectionSetup = false
                         "Pasted sketch screenshot through LAN."
                     } else {
+                        connectionActive = false
+                        showConnectionSetup = true
                         bridgeResult.message ?: "Windows companion image paste failed."
                     }
                     isSending = false
@@ -213,36 +260,52 @@ private fun MathwriteScreen() {
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ConnectionPanel(
-            endpointHost = endpointHost,
-            endpointPortText = endpointPortText,
-            discoveredDevices = discoveredDevices,
-            isScanning = isScanning,
-            onHostChange = { endpointHost = it },
-            onPortChange = { endpointPortText = it.filter(Char::isDigit).take(5) },
-            onConnect = {
-                currentEndpoint()?.let(::saveAndAnnounceEndpoint)
-                    ?: run { status = "Enter a valid laptop IP and port." }
-            },
-            onScan = {
-                val port = endpointPortText.toIntOrNull() ?: 18765
-                isScanning = true
-                status = "Scanning local network..."
-                scope.launch {
-                    val devices = withContext(Dispatchers.IO) {
-                        CompanionDiscoveryClient(port).scan()
-                    }
-                    discoveredDevices = devices
-                    status = if (devices.isEmpty()) {
-                        "No companion found. Check that both devices are on the same Wi-Fi and Windows Firewall allows the app."
-                    } else {
-                        "Found ${devices.size} companion device(s)."
-                    }
-                    isScanning = false
-                }
-            },
-            onDeviceSelected = { device -> saveAndAnnounceEndpoint(device.endpoint) },
+        ConnectionStatusBar(
+            state = connectionState,
+            onCheck = ::checkCurrentConnection,
+            onChange = { showConnectionSetup = true },
         )
+
+        if (connectionState.shouldShowSetup) {
+            ConnectionPanel(
+                endpointHost = endpointHost,
+                endpointPortText = endpointPortText,
+                discoveredDevices = discoveredDevices,
+                isScanning = isScanning,
+                onHostChange = {
+                    endpointHost = it
+                    selectedEndpoint = null
+                    connectionActive = false
+                },
+                onPortChange = {
+                    endpointPortText = it.filter(Char::isDigit).take(5)
+                    selectedEndpoint = null
+                    connectionActive = false
+                },
+                onConnect = {
+                    currentEndpoint()?.let(::saveAndAnnounceEndpoint)
+                        ?: run { status = "Enter a valid laptop IP and port." }
+                },
+                onScan = {
+                    val port = endpointPortText.toIntOrNull() ?: 18765
+                    isScanning = true
+                    status = "Scanning local network..."
+                    scope.launch {
+                        val devices = withContext(Dispatchers.IO) {
+                            CompanionDiscoveryClient(port).scan()
+                        }
+                        discoveredDevices = devices
+                        status = if (devices.isEmpty()) {
+                            "No companion found. Check that both devices are on the same Wi-Fi and Windows Firewall allows the app."
+                        } else {
+                            "Found ${devices.size} companion device(s)."
+                        }
+                        isScanning = false
+                    }
+                },
+                onDeviceSelected = { device -> saveAndAnnounceEndpoint(device.endpoint) },
+            )
+        }
 
         BoardModeToolbar(
             boardMode = boardMode,
@@ -322,6 +385,37 @@ private fun MathwriteScreen() {
         Text(status, color = Color(0xFF334155))
 
         Spacer(modifier = Modifier.height(2.dp))
+    }
+}
+
+@Composable
+private fun ConnectionStatusBar(
+    state: ConnectionUiState,
+    onCheck: () -> Unit,
+    onChange: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = if (state.isActive) Color(0xFFEFFDF5) else Color(0xFFFFF7ED),
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 1.dp,
+    ) {
+        FlowRow(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = state.statusText,
+                color = if (state.isActive) Color(0xFF166534) else Color(0xFF9A3412),
+            )
+            OutlinedButton(onClick = onCheck) {
+                Text("Check")
+            }
+            OutlinedButton(onClick = onChange) {
+                Text("Change")
+            }
+        }
     }
 }
 

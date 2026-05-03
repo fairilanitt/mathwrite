@@ -71,11 +71,12 @@ var workflowSteps = MathExercisePasteWorkflow.Steps.Select(step => step.Name).To
 AssertSequenceEqual(
     new[]
     {
+        "Ctrl+E",
         "Ctrl+V",
         "Enter"
     },
     workflowSteps,
-    "math exercise website workflow pastes into the already-open LaTeX prompt, then starts the next row");
+    "math exercise website workflow opens the LaTeX prompt, pastes, then starts the next row");
 
 Console.WriteLine("All companion core tests passed");
 

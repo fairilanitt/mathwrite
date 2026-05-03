@@ -4,6 +4,7 @@ public static class MathExercisePasteWorkflow
 {
     public static IReadOnlyList<PasteAutomationStep> TextSteps { get; } =
     [
+        PasteAutomationStep.KeyboardShortcut("Ctrl+E", VirtualKey.Control, VirtualKey.E, 180),
         PasteAutomationStep.KeyboardShortcut("Ctrl+V", VirtualKey.Control, VirtualKey.V, 120),
         PasteAutomationStep.KeyPress("Enter", VirtualKey.Enter, 0)
     ];

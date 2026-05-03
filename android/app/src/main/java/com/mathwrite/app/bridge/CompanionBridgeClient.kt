@@ -10,6 +10,27 @@ import java.net.URL
 class CompanionBridgeClient(
     private val endpoint: CompanionEndpoint,
 ) {
+    fun checkHealth(): BridgeResult {
+        val connection = (URL(endpoint.url("/hello")).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 1_500
+            readTimeout = 2_500
+        }
+
+        return try {
+            val responseText = readResponse(connection)
+            val responseJson = JSONObject(responseText)
+            BridgeResult(
+                ok = connection.responseCode in 200..299,
+                message = responseJson.optString("name").ifBlank { endpoint.displayName },
+            )
+        } catch (exception: Exception) {
+            BridgeResult(false, exception.message ?: "Could not reach Mathwrite Companion.")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun paste(sequenceId: Long, latex: String, mode: LatexPasteMode, sessionId: String): BridgeResult {
         val body = PasteRequest(sequenceId, sessionId, latex, mode).toJson().toString()
 
