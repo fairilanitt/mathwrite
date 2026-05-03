@@ -1,57 +1,59 @@
 package com.mathwrite.app.ui
 
-import androidx.compose.foundation.Canvas
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.mathwrite.app.R
 
-enum class MathwriteIcon {
-    CheckConnection,
-    ChangeConnection,
-    Connect,
-    Scan,
-    MathMode,
-    SketchMode,
-    Pen,
-    StylusOnly,
-    Undo,
-    Clear,
-    SendLatex,
-    SendSketch,
-    More,
-    Highlighter,
-    Eraser,
-    Fill,
+enum class MathwriteIcon(@param:DrawableRes val drawableResId: Int) {
+    CheckConnection(R.drawable.btn_check_connection),
+    ChangeConnection(R.drawable.btn_change_connection),
+    Connect(R.drawable.btn_connect),
+    Scan(R.drawable.btn_scan),
+    MathMode(R.drawable.btn_math_mode),
+    SketchMode(R.drawable.btn_sketch_mode),
+    Pen(R.drawable.btn_pen),
+    StylusOnly(R.drawable.btn_stylus_only),
+    Undo(R.drawable.btn_undo),
+    Clear(R.drawable.btn_clear),
+    SendLatex(R.drawable.btn_send_latex),
+    SendSketch(R.drawable.btn_send_sketch),
+    More(R.drawable.btn_more),
+    Highlighter(R.drawable.btn_highlighter),
+    Eraser(R.drawable.btn_eraser),
+    Fill(R.drawable.btn_fill),
 }
 
 @Composable
 fun ToolbarStrip(content: @Composable RowScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
+        color = androidx.compose.ui.graphics.Color.White,
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 1.dp,
     ) {
@@ -59,208 +61,81 @@ fun ToolbarStrip(content: @Composable RowScope.() -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
     }
 }
 
 @Composable
-fun IconCircleButton(
+fun ToolbarGroup(content: @Composable RowScope.() -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+@Composable
+fun GeneratedIconButton(
     icon: MathwriteIcon,
     contentDescription: String,
     selected: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val background = when {
-        selected -> Color.Black
-        enabled -> Color.White
-        else -> Color(0xFFE5E7EB)
-    }
-    val tint = when {
-        selected -> Color.White
-        enabled -> Color.Black
-        else -> Color(0xFF94A3B8)
-    }
-
-    Surface(
+    Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(width = 76.dp, height = 48.dp)
             .semantics {
                 this.contentDescription = contentDescription
                 role = Role.Button
                 if (!enabled) disabled()
             }
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = androidx.compose.ui.graphics.Color(0xFF111827),
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .padding(2.dp)
+            .alpha(if (enabled) 1f else 0.42f)
             .clickable(enabled = enabled, onClick = onClick),
-        shape = CircleShape,
-        color = background,
-        tonalElevation = if (selected) 0.dp else 1.dp,
-        shadowElevation = if (selected) 0.dp else 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+        contentAlignment = Alignment.Center,
     ) {
-        MathwriteGlyph(
+        MathwriteIconImage(
             icon = icon,
-            tint = tint,
-            modifier = Modifier
-                .padding(11.dp)
-                .size(24.dp),
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
 
 @Composable
-fun MathwriteGlyph(
+fun MathwriteIconImage(
     icon: MathwriteIcon,
-    tint: Color,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
 ) {
-    Canvas(modifier = modifier) {
-        when (icon) {
-            MathwriteIcon.CheckConnection -> drawCheckConnection(tint)
-            MathwriteIcon.ChangeConnection -> drawChangeConnection(tint)
-            MathwriteIcon.Connect -> drawConnect(tint)
-            MathwriteIcon.Scan -> drawScan(tint)
-            MathwriteIcon.MathMode -> drawMathMode(tint)
-            MathwriteIcon.SketchMode -> drawSketchMode(tint)
-            MathwriteIcon.Pen -> drawPen(tint)
-            MathwriteIcon.StylusOnly -> drawStylusOnly(tint)
-            MathwriteIcon.Undo -> drawUndo(tint)
-            MathwriteIcon.Clear -> drawClear(tint)
-            MathwriteIcon.SendLatex -> drawSendLatex(tint)
-            MathwriteIcon.SendSketch -> drawSendSketch(tint)
-            MathwriteIcon.More -> drawMore(tint)
-            MathwriteIcon.Highlighter -> drawHighlighter(tint)
-            MathwriteIcon.Eraser -> drawEraser(tint)
-            MathwriteIcon.Fill -> drawFill(tint)
-        }
-    }
+    Image(
+        painter = painterResource(icon.drawableResId),
+        contentDescription = contentDescription,
+        contentScale = ContentScale.Fit,
+        modifier = modifier,
+    )
 }
 
-private fun DrawScope.stroke(color: Color, width: Float = size.minDimension * 0.095f) =
-    Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round)
-
-private fun DrawScope.drawCheckConnection(color: Color) {
-    drawCircle(color, radius = size.minDimension * 0.36f, style = stroke(color))
-    drawLine(color, Offset(size.width * 0.32f, size.height * 0.52f), Offset(size.width * 0.45f, size.height * 0.65f), strokeWidth = size.minDimension * 0.1f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.45f, size.height * 0.65f), Offset(size.width * 0.70f, size.height * 0.38f), strokeWidth = size.minDimension * 0.1f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawChangeConnection(color: Color) {
-    drawLine(color, Offset(size.width * 0.28f, size.height * 0.35f), Offset(size.width * 0.72f, size.height * 0.35f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.62f, size.height * 0.23f), Offset(size.width * 0.75f, size.height * 0.35f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.62f, size.height * 0.47f), Offset(size.width * 0.75f, size.height * 0.35f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.72f, size.height * 0.66f), Offset(size.width * 0.28f, size.height * 0.66f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.38f, size.height * 0.54f), Offset(size.width * 0.25f, size.height * 0.66f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.38f, size.height * 0.78f), Offset(size.width * 0.25f, size.height * 0.66f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawConnect(color: Color) {
-    drawCircle(color, radius = size.minDimension * 0.14f, center = Offset(size.width * 0.30f, size.height * 0.50f), style = stroke(color))
-    drawCircle(color, radius = size.minDimension * 0.14f, center = Offset(size.width * 0.70f, size.height * 0.50f), style = stroke(color))
-    drawLine(color, Offset(size.width * 0.43f, size.height * 0.50f), Offset(size.width * 0.57f, size.height * 0.50f), strokeWidth = size.minDimension * 0.1f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawScan(color: Color) {
-    drawCircle(color, radius = size.minDimension * 0.24f, center = Offset(size.width * 0.43f, size.height * 0.43f), style = stroke(color))
-    drawLine(color, Offset(size.width * 0.60f, size.height * 0.60f), Offset(size.width * 0.78f, size.height * 0.78f), strokeWidth = size.minDimension * 0.1f, cap = StrokeCap.Round)
-    drawCircle(color, radius = size.minDimension * 0.04f, center = Offset(size.width * 0.43f, size.height * 0.43f))
-}
-
-private fun DrawScope.drawMathMode(color: Color) {
-    val path = Path().apply {
-        moveTo(size.width * 0.24f, size.height * 0.34f)
-        lineTo(size.width * 0.44f, size.height * 0.66f)
-        lineTo(size.width * 0.78f, size.height * 0.24f)
-    }
-    drawPath(path, color, style = stroke(color))
-    drawLine(color, Offset(size.width * 0.55f, size.height * 0.66f), Offset(size.width * 0.78f, size.height * 0.66f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawSketchMode(color: Color) {
-    val path = Path().apply {
-        moveTo(size.width * 0.22f, size.height * 0.62f)
-        cubicTo(size.width * 0.34f, size.height * 0.25f, size.width * 0.50f, size.height * 0.82f, size.width * 0.64f, size.height * 0.40f)
-        cubicTo(size.width * 0.70f, size.height * 0.24f, size.width * 0.77f, size.height * 0.34f, size.width * 0.80f, size.height * 0.48f)
-    }
-    drawPath(path, color, style = stroke(color))
-}
-
-private fun DrawScope.drawPen(color: Color) {
-    drawLine(color, Offset(size.width * 0.27f, size.height * 0.74f), Offset(size.width * 0.68f, size.height * 0.26f), strokeWidth = size.minDimension * 0.13f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.22f, size.height * 0.79f), Offset(size.width * 0.35f, size.height * 0.72f), strokeWidth = size.minDimension * 0.08f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawStylusOnly(color: Color) {
-    drawPen(color)
-    drawCircle(color, radius = size.minDimension * 0.08f, center = Offset(size.width * 0.74f, size.height * 0.24f), style = stroke(color, size.minDimension * 0.07f))
-}
-
-private fun DrawScope.drawUndo(color: Color) {
-    val path = Path().apply {
-        moveTo(size.width * 0.32f, size.height * 0.42f)
-        cubicTo(size.width * 0.45f, size.height * 0.22f, size.width * 0.78f, size.height * 0.38f, size.width * 0.66f, size.height * 0.66f)
-    }
-    drawPath(path, color, style = stroke(color))
-    drawLine(color, Offset(size.width * 0.33f, size.height * 0.42f), Offset(size.width * 0.50f, size.height * 0.32f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.33f, size.height * 0.42f), Offset(size.width * 0.43f, size.height * 0.58f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawClear(color: Color) {
-    drawRoundRect(color, topLeft = Offset(size.width * 0.32f, size.height * 0.35f), size = Size(size.width * 0.36f, size.height * 0.42f), cornerRadius = CornerRadius(size.minDimension * 0.06f), style = stroke(color))
-    drawLine(color, Offset(size.width * 0.28f, size.height * 0.30f), Offset(size.width * 0.72f, size.height * 0.30f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.42f, size.height * 0.22f), Offset(size.width * 0.58f, size.height * 0.22f), strokeWidth = size.minDimension * 0.08f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawSendLatex(color: Color) {
-    val plane = Path().apply {
-        moveTo(size.width * 0.18f, size.height * 0.50f)
-        lineTo(size.width * 0.82f, size.height * 0.22f)
-        lineTo(size.width * 0.62f, size.height * 0.78f)
-        lineTo(size.width * 0.48f, size.height * 0.57f)
-        close()
-    }
-    drawPath(plane, color, style = stroke(color))
-}
-
-private fun DrawScope.drawSendSketch(color: Color) {
-    drawRoundRect(color, topLeft = Offset(size.width * 0.20f, size.height * 0.28f), size = Size(size.width * 0.45f, size.height * 0.42f), cornerRadius = CornerRadius(size.minDimension * 0.06f), style = stroke(color))
-    drawLine(color, Offset(size.width * 0.58f, size.height * 0.50f), Offset(size.width * 0.82f, size.height * 0.50f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.72f, size.height * 0.38f), Offset(size.width * 0.84f, size.height * 0.50f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.72f, size.height * 0.62f), Offset(size.width * 0.84f, size.height * 0.50f), strokeWidth = size.minDimension * 0.09f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawMore(color: Color) {
-    drawCircle(color, radius = size.minDimension * 0.07f, center = Offset(size.width * 0.50f, size.height * 0.28f))
-    drawCircle(color, radius = size.minDimension * 0.07f, center = Offset(size.width * 0.50f, size.height * 0.50f))
-    drawCircle(color, radius = size.minDimension * 0.07f, center = Offset(size.width * 0.50f, size.height * 0.72f))
-}
-
-private fun DrawScope.drawHighlighter(color: Color) {
-    drawLine(color, Offset(size.width * 0.30f, size.height * 0.68f), Offset(size.width * 0.66f, size.height * 0.30f), strokeWidth = size.minDimension * 0.18f, cap = StrokeCap.Round)
-    drawLine(color, Offset(size.width * 0.22f, size.height * 0.78f), Offset(size.width * 0.58f, size.height * 0.78f), strokeWidth = size.minDimension * 0.08f, cap = StrokeCap.Round)
-}
-
-private fun DrawScope.drawEraser(color: Color) {
-    val path = Path().apply {
-        moveTo(size.width * 0.25f, size.height * 0.63f)
-        lineTo(size.width * 0.52f, size.height * 0.30f)
-        lineTo(size.width * 0.75f, size.height * 0.48f)
-        lineTo(size.width * 0.49f, size.height * 0.78f)
-        close()
-    }
-    drawPath(path, color, style = stroke(color))
-}
-
-private fun DrawScope.drawFill(color: Color) {
-    val bucket = Path().apply {
-        moveTo(size.width * 0.30f, size.height * 0.38f)
-        lineTo(size.width * 0.54f, size.height * 0.22f)
-        lineTo(size.width * 0.76f, size.height * 0.46f)
-        lineTo(size.width * 0.46f, size.height * 0.70f)
-        close()
-    }
-    drawPath(bucket, color, style = stroke(color))
-    drawCircle(color, radius = size.minDimension * 0.07f, center = Offset(size.width * 0.72f, size.height * 0.72f))
+@Composable
+fun PaletteLabelIcon(icon: MathwriteIcon) {
+    MathwriteIconImage(
+        icon = icon,
+        modifier = Modifier
+            .width(48.dp)
+            .height(30.dp),
+    )
 }

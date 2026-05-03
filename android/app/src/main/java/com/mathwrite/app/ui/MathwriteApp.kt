@@ -423,15 +423,17 @@ private fun ConnectionStatusBar(
     ) {
         FlowRow(
             modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = state.statusText,
                 color = if (state.isActive) Color(0xFF166534) else Color(0xFF9A3412),
             )
-            IconCircleButton(MathwriteIcon.CheckConnection, "Check connection", onClick = onCheck)
-            IconCircleButton(MathwriteIcon.ChangeConnection, "Change connection", onClick = onChange)
+            ToolbarGroup {
+                GeneratedIconButton(MathwriteIcon.CheckConnection, "Check connection", onClick = onCheck)
+                GeneratedIconButton(MathwriteIcon.ChangeConnection, "Change connection", onClick = onChange)
+            }
         }
     }
 }
@@ -476,7 +478,7 @@ private fun ConnectionPanel(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FlowRow(
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedTextField(
@@ -494,8 +496,10 @@ private fun ConnectionPanel(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(0.24f),
                 )
-                IconCircleButton(MathwriteIcon.Connect, "Connect", onClick = onConnect)
-                IconCircleButton(MathwriteIcon.Scan, "Scan network", enabled = !isScanning, onClick = onScan)
+                ToolbarGroup {
+                    GeneratedIconButton(MathwriteIcon.Connect, "Connect", onClick = onConnect)
+                    GeneratedIconButton(MathwriteIcon.Scan, "Scan network", enabled = !isScanning, onClick = onScan)
+                }
             }
 
             if (discoveredDevices.isNotEmpty()) {
@@ -529,18 +533,20 @@ private fun BoardModeToolbar(
     onBoardModeChange: (BoardMode) -> Unit,
 ) {
     ToolbarStrip {
-        IconCircleButton(
-            icon = MathwriteIcon.MathMode,
-            contentDescription = "Math mode",
-            selected = boardMode == BoardMode.Math,
-            onClick = { onBoardModeChange(BoardMode.Math) },
-        )
-        IconCircleButton(
-            icon = MathwriteIcon.SketchMode,
-            contentDescription = "Sketch mode",
-            selected = boardMode == BoardMode.Sketch,
-            onClick = { onBoardModeChange(BoardMode.Sketch) },
-        )
+        ToolbarGroup {
+            GeneratedIconButton(
+                icon = MathwriteIcon.MathMode,
+                contentDescription = "Math mode",
+                selected = boardMode == BoardMode.Math,
+                onClick = { onBoardModeChange(BoardMode.Math) },
+            )
+            GeneratedIconButton(
+                icon = MathwriteIcon.SketchMode,
+                contentDescription = "Sketch mode",
+                selected = boardMode == BoardMode.Sketch,
+                onClick = { onBoardModeChange(BoardMode.Sketch) },
+            )
+        }
     }
 }
 
@@ -557,12 +563,20 @@ private fun MathToolbar(
     onSend: () -> Unit,
 ) {
     ToolbarStrip {
-        IconCircleButton(MathwriteIcon.Pen, "Pen", selected = true, onClick = {})
-        IconCircleButton(MathwriteIcon.StylusOnly, "S Pen only", selected = true, onClick = {})
-        IconCircleButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
-        IconCircleButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
-        IconCircleButton(MathwriteIcon.SendLatex, if (isSending) "Sending LaTeX" else "Send LaTeX", enabled = canSend, onClick = onSend)
-        PasteModeSettingsMenu(pasteMode = pasteMode, onPasteModeChange = onPasteModeChange)
+        ToolbarGroup {
+            GeneratedIconButton(MathwriteIcon.Pen, "Pen", selected = true, onClick = {})
+            GeneratedIconButton(MathwriteIcon.StylusOnly, "S Pen only", selected = true, onClick = {})
+        }
+        ToolbarGroup {
+            GeneratedIconButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
+            GeneratedIconButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
+        }
+        ToolbarGroup {
+            GeneratedIconButton(MathwriteIcon.SendLatex, if (isSending) "Sending LaTeX" else "Send LaTeX", enabled = canSend, onClick = onSend)
+        }
+        ToolbarGroup {
+            PasteModeSettingsMenu(pasteMode = pasteMode, onPasteModeChange = onPasteModeChange)
+        }
     }
 }
 
@@ -596,15 +610,21 @@ private fun SketchRibbon(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconCircleButton(MathwriteIcon.Pen, "Pen", selected = tool == SketchTool.Pen, onClick = { onToolChange(SketchTool.Pen) })
-                IconCircleButton(MathwriteIcon.Highlighter, "Highlighter", selected = tool == SketchTool.Highlighter, onClick = { onToolChange(SketchTool.Highlighter) })
-                IconCircleButton(MathwriteIcon.Eraser, "Eraser", selected = tool == SketchTool.Eraser, onClick = { onToolChange(SketchTool.Eraser) })
-                IconCircleButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
-                IconCircleButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
-                IconCircleButton(MathwriteIcon.SendSketch, if (isSending) "Sending sketch" else "Send sketch", enabled = canSend, onClick = onSend)
+                ToolbarGroup {
+                    GeneratedIconButton(MathwriteIcon.Pen, "Pen", selected = tool == SketchTool.Pen, onClick = { onToolChange(SketchTool.Pen) })
+                    GeneratedIconButton(MathwriteIcon.Highlighter, "Highlighter", selected = tool == SketchTool.Highlighter, onClick = { onToolChange(SketchTool.Highlighter) })
+                    GeneratedIconButton(MathwriteIcon.Eraser, "Eraser", selected = tool == SketchTool.Eraser, onClick = { onToolChange(SketchTool.Eraser) })
+                }
+                ToolbarGroup {
+                    GeneratedIconButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
+                    GeneratedIconButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
+                }
+                ToolbarGroup {
+                    GeneratedIconButton(MathwriteIcon.SendSketch, if (isSending) "Sending sketch" else "Send sketch", enabled = canSend, onClick = onSend)
+                }
             }
 
             FlowRow(
@@ -669,11 +689,7 @@ private fun FillPalette(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        MathwriteGlyph(
-            icon = MathwriteIcon.Fill,
-            tint = Color.Black,
-            modifier = Modifier.size(24.dp),
-        )
+        PaletteLabelIcon(MathwriteIcon.Fill)
         colors.forEach { color ->
             ColorSwatch(
                 colorArgb = color,
@@ -707,7 +723,7 @@ private fun PasteModeSettingsMenu(
     var expanded by remember { mutableStateOf(false) }
 
     Box {
-        IconCircleButton(MathwriteIcon.More, "More settings", onClick = { expanded = true })
+        GeneratedIconButton(MathwriteIcon.More, "More settings", onClick = { expanded = true })
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
