@@ -1,6 +1,11 @@
 package com.mathwrite.app.ui
 
 import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,21 +14,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -36,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +61,7 @@ import com.mathwrite.app.sketch.SketchStroke
 import com.mathwrite.app.sketch.SketchStyle
 import com.mathwrite.app.sketch.SketchTool
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -85,10 +88,10 @@ private fun MathwriteScreen() {
 
     var mathStrokes by remember { mutableStateOf<List<InkStroke>>(emptyList()) }
     var sketchStrokes by remember { mutableStateOf<List<SketchStroke>>(emptyList()) }
-    var preview by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Choose the laptop companion on the same network.") }
     var pasteMode by remember { mutableStateOf(MathwriteUiDefaults.DefaultPasteMode) }
     var sequenceId by remember { mutableLongStateOf(1L) }
+    var noticeSequence by remember { mutableLongStateOf(0L) }
+    var notice by remember { mutableStateOf<TimedNotice?>(null) }
     val bridgeSessionId = remember { UUID.randomUUID().toString() }
     var isSending by remember { mutableStateOf(false) }
     var isScanning by remember { mutableStateOf(false) }
@@ -107,6 +110,19 @@ private fun MathwriteScreen() {
     val scope = rememberCoroutineScope()
     val connectionState = ConnectionUiState(selectedEndpoint, connectionActive, showConnectionSetup)
 
+    fun showNotice(message: String) {
+        noticeSequence += 1
+        notice = TimedNotice(noticeSequence, message, System.currentTimeMillis())
+    }
+
+    LaunchedEffect(notice?.id) {
+        val activeNoticeId = notice?.id ?: return@LaunchedEffect
+        delay(TimedNotice.VisibleMillis)
+        if (notice?.id == activeNoticeId) {
+            notice = null
+        }
+    }
+
     fun currentEndpoint(): CompanionEndpoint? {
         val port = endpointPortText.toIntOrNull()
         val host = endpointHost.trim()
@@ -118,19 +134,19 @@ private fun MathwriteScreen() {
         endpointHost = endpoint.host
         endpointPortText = endpoint.port.toString()
         endpointPreferences.save(endpoint)
-        status = "Connecting to ${endpoint.displayName}..."
+        showNotice("Connecting to ${endpoint.displayName}...")
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 CompanionBridgeClient(endpoint).announceTablet(bridgeSessionId, tabletName)
             }
-            status = if (result.ok) {
+            if (result.ok) {
                 connectionActive = true
                 showConnectionSetup = false
-                "Connected to ${endpoint.displayName}."
+                showNotice("Connected to ${endpoint.displayName}.")
             } else {
                 connectionActive = false
                 showConnectionSetup = true
-                result.message ?: "Could not reach ${endpoint.displayName}."
+                showNotice(result.message ?: "Could not reach ${endpoint.displayName}.")
             }
         }
     }
@@ -141,22 +157,22 @@ private fun MathwriteScreen() {
             selectedEndpoint = null
             connectionActive = false
             showConnectionSetup = true
-            status = "Choose a laptop companion before checking."
+            showNotice("Choose a laptop companion before checking.")
             return
         }
 
         selectedEndpoint = endpoint
-        status = "Checking ${endpoint.displayName}..."
+        showNotice("Checking ${endpoint.displayName}...")
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 CompanionBridgeClient(endpoint).checkHealth()
             }
             connectionActive = result.ok
             showConnectionSetup = !result.ok
-            status = if (result.ok) {
-                "Connection active: ${endpoint.displayName}."
+            if (result.ok) {
+                showNotice("Connection active: ${endpoint.displayName}.")
             } else {
-                result.message ?: "Connection inactive: ${endpoint.displayName}."
+                showNotice(result.message ?: "Connection inactive: ${endpoint.displayName}.")
             }
         }
     }
@@ -170,12 +186,12 @@ private fun MathwriteScreen() {
     val sendMath: () -> Unit = {
         val endpoint = currentEndpoint()
         when {
-            endpoint == null -> status = "Choose a laptop companion before sending."
-            mathStrokes.isEmpty() -> status = "Write something before sending."
+            endpoint == null -> showNotice("Choose a laptop companion before sending.")
+            mathStrokes.isEmpty() -> showNotice("Write something before sending.")
             else -> {
                 endpointPreferences.save(endpoint)
                 isSending = true
-                status = "Recognizing with Mathpix v3/strokes..."
+                showNotice("Recognizing with Mathpix v3/strokes...")
 
                 scope.launch {
                     val recognition = withContext(Dispatchers.IO) {
@@ -184,27 +200,26 @@ private fun MathwriteScreen() {
 
                     val latex = recognition.latex
                     if (latex.isNullOrBlank()) {
-                        status = recognition.error ?: "No LaTeX returned."
+                        showNotice(recognition.error ?: "No LaTeX returned.")
                         isSending = false
                         return@launch
                     }
 
-                    preview = latex
-                    status = "Sending LaTeX to ${endpoint.displayName}..."
+                    showNotice("Sending LaTeX to ${endpoint.displayName}...")
 
                     val currentSequence = sequenceId++
                     val bridgeResult = withContext(Dispatchers.IO) {
                         CompanionBridgeClient(endpoint).paste(currentSequence, latex, pasteMode, bridgeSessionId)
                     }
 
-                    status = if (bridgeResult.ok) {
+                    if (bridgeResult.ok) {
                         connectionActive = true
                         showConnectionSetup = false
-                        "Pasted LaTeX through LAN."
+                        showNotice("Pasted LaTeX through LAN.")
                     } else {
                         connectionActive = false
                         showConnectionSetup = true
-                        bridgeResult.message ?: "Windows companion paste failed."
+                        showNotice(bridgeResult.message ?: "Windows companion paste failed.")
                     }
                     isSending = false
                 }
@@ -215,13 +230,13 @@ private fun MathwriteScreen() {
     val sendSketch: () -> Unit = {
         val endpoint = currentEndpoint()
         when {
-            endpoint == null -> status = "Choose a laptop companion before sending."
-            sketchStrokes.isEmpty() -> status = "Draw a sketch before sending."
-            sketchCanvasSize.width <= 0 || sketchCanvasSize.height <= 0 -> status = "Sketch board is not ready yet."
+            endpoint == null -> showNotice("Choose a laptop companion before sending.")
+            sketchStrokes.isEmpty() -> showNotice("Draw a sketch before sending.")
+            sketchCanvasSize.width <= 0 || sketchCanvasSize.height <= 0 -> showNotice("Sketch board is not ready yet.")
             else -> {
                 endpointPreferences.save(endpoint)
                 isSending = true
-                status = "Rendering sketch screenshot..."
+                showNotice("Rendering sketch screenshot...")
                 val currentSequence = sequenceId++
 
                 scope.launch {
@@ -234,19 +249,19 @@ private fun MathwriteScreen() {
                         )
                     }
 
-                    status = "Sending sketch to ${endpoint.displayName}..."
+                    showNotice("Sending sketch to ${endpoint.displayName}...")
                     val bridgeResult = withContext(Dispatchers.IO) {
                         CompanionBridgeClient(endpoint).pasteSketch(currentSequence, pngBytes, bridgeSessionId, tabletName)
                     }
 
-                    status = if (bridgeResult.ok) {
+                    if (bridgeResult.ok) {
                         connectionActive = true
                         showConnectionSetup = false
-                        "Pasted sketch screenshot through LAN."
+                        showNotice("Pasted sketch screenshot through LAN.")
                     } else {
                         connectionActive = false
                         showConnectionSetup = true
-                        bridgeResult.message ?: "Windows companion image paste failed."
+                        showNotice(bridgeResult.message ?: "Windows companion image paste failed.")
                     }
                     isSending = false
                 }
@@ -254,12 +269,13 @@ private fun MathwriteScreen() {
         }
     }
 
-    Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+        ) {
         ConnectionStatusBar(
             state = connectionState,
             onCheck = ::checkCurrentConnection,
@@ -284,21 +300,21 @@ private fun MathwriteScreen() {
                 },
                 onConnect = {
                     currentEndpoint()?.let(::saveAndAnnounceEndpoint)
-                        ?: run { status = "Enter a valid laptop IP and port." }
+                        ?: run { showNotice("Enter a valid laptop IP and port.") }
                 },
                 onScan = {
                     val port = endpointPortText.toIntOrNull() ?: 18765
                     isScanning = true
-                    status = "Scanning local network..."
+                    showNotice("Scanning local network...")
                     scope.launch {
                         val devices = withContext(Dispatchers.IO) {
                             CompanionDiscoveryClient(port).scan()
                         }
                         discoveredDevices = devices
-                        status = if (devices.isEmpty()) {
-                            "No companion found. Check that both devices are on the same Wi-Fi and Windows Firewall allows the app."
+                        if (devices.isEmpty()) {
+                            showNotice("No companion found. Check Wi-Fi and firewall.")
                         } else {
-                            "Found ${devices.size} companion device(s)."
+                            showNotice("Found ${devices.size} companion device(s).")
                         }
                         isScanning = false
                     }
@@ -323,8 +339,7 @@ private fun MathwriteScreen() {
                 onUndo = { mathStrokes = mathStrokes.dropLast(1) },
                 onClear = {
                     mathStrokes = emptyList()
-                    preview = ""
-                    status = "Math board cleared."
+                    showNotice("Math board cleared.")
                 },
                 onSend = sendMath,
             )
@@ -343,12 +358,12 @@ private fun MathwriteScreen() {
                 onWidthChange = { sketchWidth = it },
                 onBackgroundChange = {
                     backgroundArgb = it
-                    status = "Sketch fill color changed."
+                    showNotice("Sketch fill color changed.")
                 },
                 onUndo = { sketchStrokes = sketchStrokes.dropLast(1) },
                 onClear = {
                     sketchStrokes = emptyList()
-                    status = "Sketch board cleared."
+                    showNotice("Sketch board cleared.")
                 },
                 onSend = sendSketch,
             )
@@ -379,12 +394,18 @@ private fun MathwriteScreen() {
             )
         }
 
-        if (boardMode == BoardMode.Math) {
-            Text("Preview: ${preview.ifBlank { "(nothing recognized yet)" }}")
         }
-        Text(status, color = Color(0xFF334155))
 
-        Spacer(modifier = Modifier.height(2.dp))
+        AnimatedVisibility(
+            visible = notice != null,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 18.dp),
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        ) {
+            NoticeBubble(message = notice?.message.orEmpty())
+        }
     }
 }
 
@@ -402,20 +423,33 @@ private fun ConnectionStatusBar(
     ) {
         FlowRow(
             modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = state.statusText,
                 color = if (state.isActive) Color(0xFF166534) else Color(0xFF9A3412),
             )
-            OutlinedButton(onClick = onCheck) {
-                Text("Check")
-            }
-            OutlinedButton(onClick = onChange) {
-                Text("Change")
-            }
+            IconCircleButton(MathwriteIcon.CheckConnection, "Check connection", onClick = onCheck)
+            IconCircleButton(MathwriteIcon.ChangeConnection, "Change connection", onClick = onChange)
         }
+    }
+}
+
+@Composable
+private fun NoticeBubble(message: String) {
+    Surface(
+        modifier = Modifier.widthIn(min = 72.dp, max = 560.dp),
+        color = Color.Black,
+        contentColor = Color.White,
+        shape = RoundedCornerShape(999.dp),
+        shadowElevation = 8.dp,
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            color = Color.White,
+        )
     }
 }
 
@@ -442,7 +476,7 @@ private fun ConnectionPanel(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedTextField(
@@ -460,12 +494,8 @@ private fun ConnectionPanel(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(0.24f),
                 )
-                Button(onClick = onConnect) {
-                    Text("Connect")
-                }
-                OutlinedButton(enabled = !isScanning, onClick = onScan) {
-                    Text(if (isScanning) "Scanning" else "Scan")
-                }
+                IconCircleButton(MathwriteIcon.Connect, "Connect", onClick = onConnect)
+                IconCircleButton(MathwriteIcon.Scan, "Scan network", enabled = !isScanning, onClick = onScan)
             }
 
             if (discoveredDevices.isNotEmpty()) {
@@ -474,11 +504,18 @@ private fun ConnectionPanel(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     discoveredDevices.forEach { device ->
-                        FilterChip(
-                            selected = device.host == endpointHost,
-                            onClick = { onDeviceSelected(device) },
-                            label = { Text(device.displayName) },
-                        )
+                        Surface(
+                            modifier = Modifier.clickable { onDeviceSelected(device) },
+                            color = if (device.host == endpointHost) Color.Black else Color.White,
+                            contentColor = if (device.host == endpointHost) Color.White else Color.Black,
+                            shape = RoundedCornerShape(999.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        ) {
+                            Text(
+                                text = device.displayName,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -491,17 +528,19 @@ private fun BoardModeToolbar(
     boardMode: BoardMode,
     onBoardModeChange: (BoardMode) -> Unit,
 ) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BoardMode.entries.forEach { mode ->
-            FilterChip(
-                selected = boardMode == mode,
-                onClick = { onBoardModeChange(mode) },
-                label = { Text(mode.label) },
-            )
-        }
+    ToolbarStrip {
+        IconCircleButton(
+            icon = MathwriteIcon.MathMode,
+            contentDescription = "Math mode",
+            selected = boardMode == BoardMode.Math,
+            onClick = { onBoardModeChange(BoardMode.Math) },
+        )
+        IconCircleButton(
+            icon = MathwriteIcon.SketchMode,
+            contentDescription = "Sketch mode",
+            selected = boardMode == BoardMode.Sketch,
+            onClick = { onBoardModeChange(BoardMode.Sketch) },
+        )
     }
 }
 
@@ -517,24 +556,13 @@ private fun MathToolbar(
     onClear: () -> Unit,
     onSend: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 1.dp,
-    ) {
-        FlowRow(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(selected = true, onClick = {}, label = { Text("Pen") })
-            FilterChip(selected = true, onClick = {}, label = { Text("S Pen only") })
-            OutlinedButton(enabled = canUndo, onClick = onUndo) { Text("Undo") }
-            OutlinedButton(enabled = canClear, onClick = onClear) { Text("Clear") }
-            Button(enabled = canSend, onClick = onSend) { Text(if (isSending) "Sending" else "Send LaTeX") }
-            PasteModeSettingsMenu(pasteMode = pasteMode, onPasteModeChange = onPasteModeChange)
-        }
+    ToolbarStrip {
+        IconCircleButton(MathwriteIcon.Pen, "Pen", selected = true, onClick = {})
+        IconCircleButton(MathwriteIcon.StylusOnly, "S Pen only", selected = true, onClick = {})
+        IconCircleButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
+        IconCircleButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
+        IconCircleButton(MathwriteIcon.SendLatex, if (isSending) "Sending LaTeX" else "Send LaTeX", enabled = canSend, onClick = onSend)
+        PasteModeSettingsMenu(pasteMode = pasteMode, onPasteModeChange = onPasteModeChange)
     }
 }
 
@@ -566,20 +594,17 @@ private fun SketchRibbon(
             modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                SketchTool.entries.forEach { option ->
-                    FilterChip(
-                        selected = tool == option,
-                        onClick = { onToolChange(option) },
-                        label = { Text(option.label) },
-                    )
-                }
-                OutlinedButton(enabled = canUndo, onClick = onUndo) { Text("Undo") }
-                OutlinedButton(enabled = canClear, onClick = onClear) { Text("Clear") }
-                Button(enabled = canSend, onClick = onSend) { Text(if (isSending) "Sending" else "Send Sketch") }
+                IconCircleButton(MathwriteIcon.Pen, "Pen", selected = tool == SketchTool.Pen, onClick = { onToolChange(SketchTool.Pen) })
+                IconCircleButton(MathwriteIcon.Highlighter, "Highlighter", selected = tool == SketchTool.Highlighter, onClick = { onToolChange(SketchTool.Highlighter) })
+                IconCircleButton(MathwriteIcon.Eraser, "Eraser", selected = tool == SketchTool.Eraser, onClick = { onToolChange(SketchTool.Eraser) })
+                IconCircleButton(MathwriteIcon.Undo, "Undo", enabled = canUndo, onClick = onUndo)
+                IconCircleButton(MathwriteIcon.Clear, "Clear", enabled = canClear, onClick = onClear)
+                IconCircleButton(MathwriteIcon.SendSketch, if (isSending) "Sending sketch" else "Send sketch", enabled = canSend, onClick = onSend)
             }
 
             FlowRow(
@@ -644,7 +669,11 @@ private fun FillPalette(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("Fill")
+        MathwriteGlyph(
+            icon = MathwriteIcon.Fill,
+            tint = Color.Black,
+            modifier = Modifier.size(24.dp),
+        )
         colors.forEach { color ->
             ColorSwatch(
                 colorArgb = color,
@@ -678,16 +707,18 @@ private fun PasteModeSettingsMenu(
     var expanded by remember { mutableStateOf(false) }
 
     Box {
-        OutlinedButton(onClick = { expanded = true }) {
-            Text("Settings: ${pasteMode.label}")
-        }
+        IconCircleButton(MathwriteIcon.More, "More settings", onClick = { expanded = true })
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
+            DropdownMenuItem(
+                text = { Text("Current: ${pasteMode.label}") },
+                onClick = { expanded = false },
+            )
             LatexPasteMode.entries.forEach { mode ->
                 DropdownMenuItem(
-                    text = { Text("Paste mode: ${mode.label}") },
+                    text = { Text(mode.label) },
                     onClick = {
                         onPasteModeChange(mode)
                         expanded = false
