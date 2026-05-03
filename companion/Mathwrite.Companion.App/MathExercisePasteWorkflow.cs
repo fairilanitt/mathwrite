@@ -2,11 +2,18 @@ namespace Mathwrite.Companion.App;
 
 public static class MathExercisePasteWorkflow
 {
-    public static IReadOnlyList<PasteAutomationStep> Steps { get; } =
+    public static IReadOnlyList<PasteAutomationStep> TextSteps { get; } =
     [
         PasteAutomationStep.KeyboardShortcut("Ctrl+V", VirtualKey.Control, VirtualKey.V, 120),
         PasteAutomationStep.KeyPress("Enter", VirtualKey.Enter, 0)
     ];
+
+    public static IReadOnlyList<PasteAutomationStep> ImageSteps { get; } =
+    [
+        PasteAutomationStep.KeyboardShortcut("Ctrl+V", VirtualKey.Control, VirtualKey.V, 0)
+    ];
+
+    public static IReadOnlyList<PasteAutomationStep> Steps => TextSteps;
 }
 
 public sealed record PasteAutomationStep(

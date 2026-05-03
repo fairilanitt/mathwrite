@@ -11,6 +11,23 @@ AssertFalse(PasteRequestValidator.Validate(new PasteRequest(0, "x^2", PasteMode.
 AssertFalse(PasteRequestValidator.Validate(new PasteRequest(1, "", PasteMode.Raw, "mathwrite-android")).IsValid, "latex must be non-empty");
 AssertFalse(PasteRequestValidator.Validate(new PasteRequest(1, "x^2", PasteMode.Raw, "unknown")).IsValid, "source must match Android app");
 
+var sketchBytes = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4 };
+var sketchBase64 = Convert.ToBase64String(sketchBytes);
+AssertTrue(SketchPasteRequestValidator.Validate(new SketchPasteRequest(1, "session-a", sketchBase64, "mathwrite-android", "Galaxy Tab S8+")).IsValid, "valid sketch request is accepted");
+AssertFalse(SketchPasteRequestValidator.Validate(new SketchPasteRequest(0, "session-a", sketchBase64, "mathwrite-android", "Galaxy Tab S8+")).IsValid, "sketch sequence id must be positive");
+AssertFalse(SketchPasteRequestValidator.Validate(new SketchPasteRequest(1, "", sketchBase64, "mathwrite-android", "Galaxy Tab S8+")).IsValid, "sketch session id must be present");
+AssertFalse(SketchPasteRequestValidator.Validate(new SketchPasteRequest(1, "session-a", "", "mathwrite-android", "Galaxy Tab S8+")).IsValid, "sketch image payload must be present");
+AssertFalse(SketchPasteRequestValidator.Validate(new SketchPasteRequest(1, "session-a", "not-base64", "mathwrite-android", "Galaxy Tab S8+")).IsValid, "sketch image payload must be base64");
+AssertFalse(SketchPasteRequestValidator.Validate(new SketchPasteRequest(1, "session-a", sketchBase64, "unknown", "Galaxy Tab S8+")).IsValid, "sketch source must match Android app");
+
+var tabletRegistry = new TabletRegistry();
+var firstTablet = tabletRegistry.RegisterOrUpdate("session-a", "Galaxy Tab S8+", "192.168.1.50");
+var secondTablet = tabletRegistry.RegisterOrUpdate("session-b", "Other Tablet", "192.168.1.51");
+tabletRegistry.Select(firstTablet.SessionId);
+AssertTrue(tabletRegistry.IsAllowed(firstTablet.SessionId), "selected tablet is allowed");
+AssertFalse(tabletRegistry.IsAllowed(secondTablet.SessionId), "unselected tablet is rejected when a tablet is selected");
+AssertSequenceEqual(new[] { "Galaxy Tab S8+", "Other Tablet" }, tabletRegistry.Tablets.Select(tablet => tablet.DisplayName).ToArray(), "tablet registry keeps discovered tablets");
+
 var guard = new SequenceGuard();
 AssertTrue(guard.TryAccept(1), "first sequence id is accepted");
 AssertFalse(guard.TryAccept(1), "duplicate sequence id is rejected");
@@ -40,26 +57,12 @@ AssertTrue(
     sessionHandler.HandleAsync(new PasteRequest(1, "y", PasteMode.Raw, "mathwrite-android", "session-b"), CancellationToken.None).GetAwaiter().GetResult().Ok,
     "handler accepts low sequence id in a new session");
 
-var pathAdb = @"C:\tools\platform-tools\adb.exe";
-var localAdb = @"C:\Users\emili\AppData\Local\Android\Sdk\platform-tools\adb.exe";
-var env = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-{
-    ["LOCALAPPDATA"] = @"C:\Users\emili\AppData\Local",
-    ["ANDROID_HOME"] = null,
-    ["ANDROID_SDK_ROOT"] = null
-};
-
-var fromPath = AdbPathResolver.Resolve(
-    new[] { @"C:\tools\platform-tools" },
-    env,
-    candidate => candidate == pathAdb || candidate == localAdb);
-AssertEqual(pathAdb, fromPath, "adb resolver prefers PATH entries");
-
-var fromLocalAppData = AdbPathResolver.Resolve(
-    Array.Empty<string>(),
-    env,
-    candidate => candidate == localAdb);
-AssertEqual(localAdb, fromLocalAppData, "adb resolver uses LOCALAPPDATA Android SDK fallback");
+var sketchExecutor = new CapturingPasteExecutor();
+var sketchHandler = new SketchPasteRequestHandler(sketchExecutor);
+var sketchResponse = sketchHandler.HandleAsync(new SketchPasteRequest(7, "session-a", sketchBase64, "mathwrite-android", "Galaxy Tab S8+"), CancellationToken.None).GetAwaiter().GetResult();
+AssertTrue(sketchResponse.Ok, "sketch handler accepts valid request");
+AssertTrue(sketchResponse.Pasted, "sketch handler reports pasted valid request");
+AssertSequenceEqual(sketchBytes, sketchExecutor.LastImage ?? Array.Empty<byte>(), "sketch handler decodes png payload before paste");
 
 var expectedInputSize = IntPtr.Size == 8 ? 40 : 28;
 AssertEqual(expectedInputSize, WindowsPasteExecutor.InputStructureSize, "SendInput receives the full Win32 INPUT structure size");
@@ -119,10 +122,17 @@ static void AssertSequenceEqual<T>(IReadOnlyList<T> expected, IReadOnlyList<T> a
 sealed class CapturingPasteExecutor : IPasteExecutor
 {
     public string? LastText { get; private set; }
+    public byte[]? LastImage { get; private set; }
 
-    public Task<PasteExecutionResult> PasteAsync(string text, CancellationToken cancellationToken)
+    public Task<PasteExecutionResult> PasteTextAsync(string text, CancellationToken cancellationToken)
     {
         LastText = text;
+        return Task.FromResult(PasteExecutionResult.Success());
+    }
+
+    public Task<PasteExecutionResult> PasteImageAsync(byte[] pngBytes, CancellationToken cancellationToken)
+    {
+        LastImage = pngBytes;
         return Task.FromResult(PasteExecutionResult.Success());
     }
 }

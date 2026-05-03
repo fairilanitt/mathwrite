@@ -8,18 +8,32 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class CompanionBridgeClient(
-    private val endpoint: String = "http://127.0.0.1:18765/paste",
+    private val endpoint: CompanionEndpoint,
 ) {
     fun paste(sequenceId: Long, latex: String, mode: LatexPasteMode, sessionId: String): BridgeResult {
+        val body = PasteRequest(sequenceId, sessionId, latex, mode).toJson().toString()
+
+        return postJson(endpoint.url("/paste"), body)
+    }
+
+    fun pasteSketch(sequenceId: Long, pngBytes: ByteArray, sessionId: String, tabletName: String): BridgeResult {
+        val body = SketchPasteRequest(sequenceId, sessionId, pngBytes, tabletName).toJson().toString()
+
+        return postJson(endpoint.url("/sketch"), body)
+    }
+
+    fun announceTablet(sessionId: String, tabletName: String): BridgeResult {
         val body = JSONObject()
-            .put("sequenceId", sequenceId)
             .put("sessionId", sessionId)
-            .put("latex", latex)
-            .put("mode", mode.wireName)
+            .put("tabletName", tabletName)
             .put("source", "mathwrite-android")
             .toString()
 
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+        return postJson(endpoint.url("/tablet/hello"), body)
+    }
+
+    private fun postJson(url: String, body: String): BridgeResult {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 2_500
             readTimeout = 5_000

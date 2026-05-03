@@ -10,7 +10,7 @@ class CleartextManifestTest {
         val manifest = File("src/main/AndroidManifest.xml").readText()
 
         assertTrue(
-            "The USB bridge uses http://127.0.0.1:18765, so the manifest must allow cleartext traffic.",
+            "The LAN bridge uses cleartext HTTP on the local network, so the manifest must allow cleartext traffic.",
             manifest.contains("""android:usesCleartextTraffic="true""""),
         )
     }

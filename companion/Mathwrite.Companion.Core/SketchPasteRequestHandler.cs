@@ -1,18 +1,18 @@
 namespace Mathwrite.Companion.Core;
 
-public sealed class PasteRequestHandler
+public sealed class SketchPasteRequestHandler
 {
     private readonly IPasteExecutor pasteExecutor;
     private readonly SequenceGuard sequenceGuard = new();
 
-    public PasteRequestHandler(IPasteExecutor pasteExecutor)
+    public SketchPasteRequestHandler(IPasteExecutor pasteExecutor)
     {
         this.pasteExecutor = pasteExecutor;
     }
 
-    public async Task<PasteResponse> HandleAsync(PasteRequest request, CancellationToken cancellationToken)
+    public async Task<PasteResponse> HandleAsync(SketchPasteRequest request, CancellationToken cancellationToken)
     {
-        var validation = PasteRequestValidator.Validate(request);
+        var validation = SketchPasteRequestValidator.Validate(request);
         if (!validation.IsValid)
         {
             return new PasteResponse(false, false, request.SequenceId, validation.ErrorCode, validation.Message);
@@ -20,11 +20,11 @@ public sealed class PasteRequestHandler
 
         if (!sequenceGuard.TryAccept(request.SessionId ?? "legacy", request.SequenceId))
         {
-            return new PasteResponse(false, false, request.SequenceId, "duplicate_sequence", "This paste request has already been handled.");
+            return new PasteResponse(false, false, request.SequenceId, "duplicate_sequence", "This sketch request has already been handled.");
         }
 
-        var formattedText = PasteModeFormatter.Format(request.Latex, request.Mode);
-        var pasteResult = await pasteExecutor.PasteTextAsync(formattedText, cancellationToken).ConfigureAwait(false);
+        var pngBytes = Convert.FromBase64String(request.PngBase64);
+        var pasteResult = await pasteExecutor.PasteImageAsync(pngBytes, cancellationToken).ConfigureAwait(false);
 
         return pasteResult.Succeeded
             ? new PasteResponse(true, true, request.SequenceId)

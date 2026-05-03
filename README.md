@@ -5,7 +5,7 @@ Mathwrite is a local prototype for writing math on a Samsung tablet and pasting 
 ## Pieces
 
 - `android/`: Samsung tablet handwriting surface built with Jetpack Compose.
-- `companion/`: Windows companion app that receives paste requests on `127.0.0.1:18765`.
+- `companion/`: Windows companion app that receives LaTeX and sketch paste requests over the local network.
 - `docs/`: design notes and implementation plan.
 
 ## Local Setup
@@ -14,7 +14,8 @@ Mathwrite is a local prototype for writing math on a Samsung tablet and pasting 
 2. Set `sdk.dir`, `mathpix.appId`, and `mathpix.appKey` in `android/local.properties`.
 3. Build the Windows companion with `dotnet build Mathwrite.sln`.
 4. Build the Android app from `android/` with Gradle.
-5. With USB debugging enabled, run `adb reverse tcp:18765 tcp:18765`.
-6. Start the Windows companion, then launch the Android app.
+5. Start the Windows companion and allow it through Windows Firewall on private networks if prompted.
+6. Connect the tablet and laptop to the same network.
+7. In the tablet app, scan for the companion or enter the laptop IP shown in the companion window.
 
-The Android app sends strokes to Mathpix `v3/strokes`; the Windows companion pastes the returned LaTeX into the focused app.
+The Android app sends math strokes to Mathpix `v3/strokes`; the Windows companion pastes the returned LaTeX into the focused app. Sketch mode renders the tablet drawing board to a PNG and asks the companion to paste that image into the active Windows field.

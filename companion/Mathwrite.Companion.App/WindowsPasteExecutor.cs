@@ -23,7 +23,7 @@ public sealed class WindowsPasteExecutor : IPasteExecutor
         this.log = log;
     }
 
-    public Task<PasteExecutionResult> PasteAsync(string text, CancellationToken cancellationToken)
+    public Task<PasteExecutionResult> PasteTextAsync(string text, CancellationToken cancellationToken)
     {
         if (dispatcher.IsDisposed)
         {
@@ -42,7 +42,7 @@ public sealed class WindowsPasteExecutor : IPasteExecutor
             try
             {
                 Clipboard.SetText(text, TextDataFormat.UnicodeText);
-                var result = RunWorkflow(MathExercisePasteWorkflow.Steps);
+                var result = RunWorkflow(MathExercisePasteWorkflow.TextSteps);
 
                 if (!result.Succeeded)
                 {
@@ -60,6 +60,52 @@ public sealed class WindowsPasteExecutor : IPasteExecutor
             catch (Exception exception)
             {
                 completion.TrySetResult(PasteExecutionResult.Failure("paste_failed", exception.Message));
+            }
+        });
+
+        return completion.Task;
+    }
+
+    public Task<PasteExecutionResult> PasteImageAsync(byte[] pngBytes, CancellationToken cancellationToken)
+    {
+        if (dispatcher.IsDisposed)
+        {
+            return Task.FromResult(PasteExecutionResult.Failure("app_closed", "The companion window is closed."));
+        }
+
+        var completion = new TaskCompletionSource<PasteExecutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+        }
+
+        dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                using var stream = new MemoryStream(pngBytes);
+                using var image = Image.FromStream(stream);
+                using var bitmap = new Bitmap(image);
+                Clipboard.SetImage(bitmap);
+                var result = RunWorkflow(MathExercisePasteWorkflow.ImageSteps);
+
+                if (!result.Succeeded)
+                {
+                    completion.TrySetResult(PasteExecutionResult.Failure("send_input_failed", result.Message));
+                    return;
+                }
+
+                log($"Pasted sketch image ({pngBytes.Length} bytes)");
+                completion.TrySetResult(PasteExecutionResult.Success());
+            }
+            catch (ExternalException exception)
+            {
+                completion.TrySetResult(PasteExecutionResult.Failure("clipboard_busy", exception.Message));
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetResult(PasteExecutionResult.Failure("image_paste_failed", exception.Message));
             }
         });
 

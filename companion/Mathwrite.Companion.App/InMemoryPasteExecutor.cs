@@ -12,11 +12,19 @@ public sealed class InMemoryPasteExecutor : IPasteExecutor
     }
 
     public string? LastText { get; private set; }
+    public byte[]? LastImage { get; private set; }
 
-    public Task<PasteExecutionResult> PasteAsync(string text, CancellationToken cancellationToken)
+    public Task<PasteExecutionResult> PasteTextAsync(string text, CancellationToken cancellationToken)
     {
         LastText = text;
         log("Fake paste: " + text);
+        return Task.FromResult(PasteExecutionResult.Success());
+    }
+
+    public Task<PasteExecutionResult> PasteImageAsync(byte[] pngBytes, CancellationToken cancellationToken)
+    {
+        LastImage = pngBytes;
+        log($"Fake image paste: {pngBytes.Length} bytes");
         return Task.FromResult(PasteExecutionResult.Success());
     }
 }
